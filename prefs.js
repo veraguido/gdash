@@ -97,6 +97,10 @@ export default class GDashPreferences extends ExtensionPreferences {
         const dashGroup = new Adw.PreferencesGroup({title: 'GNOME Shell'});
         behaviourPage.add(dashGroup);
 
+        dashGroup.add(this._makeSwitchRow(settings, 'show-overview-button',
+            'Show overview button',
+            'Display an Activities button at the start of the dock'));
+
         dashGroup.add(this._makeSwitchRow(settings, 'hide-dash',
             'Hide built-in dash',
             'Remove the standard GNOME dash from the overview (use GDash instead)'));

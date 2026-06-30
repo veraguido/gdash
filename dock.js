@@ -12,6 +12,7 @@ export class Dock {
     constructor(settings) {
         this._settings = settings;
         this._hideTimeoutId = null;
+        this._collisionCheckId = null;
         this._dockVisible = true;
         this._positioned = false;
         this._behaviorSigIds = [];
@@ -195,6 +196,8 @@ export class Dock {
         this._cleanupBehavior();
         switch (this._settings.get_string('dock-behavior')) {
             case 'ALWAYS_VISIBLE':
+                this._setupAlwaysVisibleCollision();
+                break;
             case 'WINDOWS_CAN_COVER':
                 this._showDock(false);
                 break;
@@ -211,6 +214,10 @@ export class Dock {
 
     _cleanupBehavior() {
         this._cancelDockHide();
+        if (this._collisionCheckId) {
+            GLib.source_remove(this._collisionCheckId);
+            this._collisionCheckId = null;
+        }
         this._onAfterReposition = null;
         for (const [obj, id] of this._behaviorSigIds)
             obj.disconnect(id);
@@ -292,14 +299,92 @@ export class Dock {
     // Restore the correct visibility state after the overview closes.
     _restoreBehaviorVisibility() {
         switch (this._settings.get_string('dock-behavior')) {
+            case 'ALWAYS_VISIBLE':
+                this._checkAlwaysVisibleCollision();
+                break;
             case 'INTELLIHIDE':
                 this._checkIntellihide();
                 break;
             case 'ALWAYS_HIDDEN':
                 this._hideDock(false);
                 break;
-            // ALWAYS_VISIBLE / WINDOWS_CAN_COVER: dock is already visible
+            // WINDOWS_CAN_COVER: dock is always visible, nothing to do
         }
+    }
+
+    // ── Always-visible collision — slides to edge when a window overlaps ────────
+
+    _setupAlwaysVisibleCollision() {
+        this._showDock(false); // start at configured margin, fully visible
+        if (this._settings.get_int('edge-margin') === 0) return; // no gap to animate
+
+        const on = (obj, sig, cb) =>
+            this._behaviorSigIds.push([obj, obj.connect(sig, cb)]);
+        const check = () => this._checkAlwaysVisibleCollision();
+
+        on(global.display,           'notify::focus-window',     check);
+        on(global.workspace_manager, 'active-workspace-changed', check);
+        on(global.window_manager,    'map',                      check);
+        on(global.window_manager,    'destroy',                  check);
+        on(global.window_manager,    'minimize',                 check);
+        on(global.window_manager,    'unminimize',               check);
+        on(global.window_manager,    'size-change',              () => this._scheduleCollisionCheck());
+        on(global.display,           'grab-op-end',              check);
+
+        this._onAfterReposition = check;
+    }
+
+    // Defer the overlap check one idle tick so get_frame_rect() reflects
+    // the final geometry after a keyboard maximize/unmaximize.  Deduplicated:
+    // rapid size-change signals coalesce into a single check.
+    _scheduleCollisionCheck() {
+        if (this._collisionCheckId) return;
+        this._collisionCheckId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            this._collisionCheckId = null;
+            this._checkAlwaysVisibleCollision();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _checkAlwaysVisibleCollision() {
+        if (!this.actor.get_stage()) return;
+        if (Main.overview.visible) return;
+
+        const ax = this.actor.x, aw = this.actor.width;
+        const ay = this.actor.y, ah = this.actor.height;
+        if (aw === 0 || ah === 0) return;
+
+        const margin = this._settings.get_int('edge-margin');
+        const pos    = this._settings.get_string('dock-position');
+
+        // Expand the trigger zone by margin on the screen-interior side so
+        // windows approaching the dock (or a maximized window whose edge is
+        // flush with the dock) also trigger the push.  The screen-edge side
+        // is left at the dock's actual boundary — we're already moving there.
+        const extX1 = pos === 'RIGHT'  ? ax - margin : ax;
+        const extX2 = pos === 'LEFT'   ? ax + aw + margin : ax + aw;
+        const extY1 = pos === 'BOTTOM' ? ay - margin : ay;
+        const extY2 = pos === 'TOP'    ? ay + ah + margin : ay + ah;
+
+        const ws = global.workspace_manager.get_active_workspace();
+        const overlaps = ws.list_windows().some(win => {
+            if (win.minimized || win.is_skip_taskbar()) return false;
+            if (win.get_window_type() !== Meta.WindowType.NORMAL) return false;
+            const r = win.get_frame_rect();
+            return r.x <= extX2 && r.x + r.width  >= extX1 &&
+                   r.y <= extY2 && r.y + r.height >= extY1;
+        });
+
+        // Compute the translation that moves the dock flush to the screen edge.
+        const tx = pos === 'LEFT' ? -margin : pos === 'RIGHT' ? margin  : 0;
+        const ty = pos === 'TOP'  ? -margin : pos === 'BOTTOM' ? margin : 0;
+
+        this.actor.ease({
+            translation_x: overlaps ? tx : 0,
+            translation_y: overlaps ? ty : 0,
+            duration: 200,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
     }
 
     // ── Intellihide — hides when a window overlaps the dock area ─────────────

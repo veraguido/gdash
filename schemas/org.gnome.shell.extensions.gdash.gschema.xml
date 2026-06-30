@@ -107,6 +107,12 @@
       <description>Hides the standard dash from the overview so only GDash is visible</description>
     </key>
 
+    <key name="show-overview-button" type="b">
+      <default>true</default>
+      <summary>Show the Activities overview button</summary>
+      <description>Display a button at the start of the dock that opens the GNOME Activities overview</description>
+    </key>
+
     <key name="dock-behavior" type="s">
       <default>'ALWAYS_VISIBLE'</default>
       <summary>Dock visibility behavior</summary>

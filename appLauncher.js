@@ -178,6 +178,7 @@ export class AppLauncher {
         this._gnomeSettings = new Gio.Settings({schema: GNOME_SHELL_SCHEMA});
         this._appSystem = Shell.AppSystem.get_default();
 
+        this._overviewButton = null;
         this._rebuild();
         this.actor.style = `spacing: ${settings.get_int('launcher-spacing')}px`;
 
@@ -194,6 +195,9 @@ export class AppLauncher {
         this._positionChangedId = settings.connect(
             'changed::dock-position', () => this._updateOrientation()
         );
+        this._overviewButtonSettingId = settings.connect(
+            'changed::show-overview-button', () => this._buildOverviewButton()
+        );
 
         this._updateOrientation();
     }
@@ -203,9 +207,52 @@ export class AppLauncher {
         this.actor.vertical = (pos === 'LEFT' || pos === 'RIGHT');
     }
 
+    _buildOverviewButton() {
+        if (this._overviewButton) {
+            this._overviewButton.destroy();
+            this._overviewButton = null;
+        }
+        if (!this._settings.get_boolean('show-overview-button')) return;
+
+        const iconSize = this._settings.get_int('icon-size');
+        const icon = new St.Icon({
+            icon_name: 'view-app-grid-symbolic',
+            icon_size: iconSize,
+            style_class: 'gdash-app-icon-image',
+        });
+        this._overviewButton = new St.Button({
+            style_class: 'gdash-app-icon gdash-overview-button',
+            child: icon,
+            can_focus: true,
+            reactive: true,
+            track_hover: true,
+            x_expand: false,
+            y_expand: false,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._overviewButton.set_pivot_point(0.5, 0.5);
+        this._overviewButton.connect('clicked', () => {
+            if (Main.overview.visible)
+                Main.overview.hide();
+            else
+                Main.overview.showApps();
+        });
+        this._overviewButton.connect('notify::hover', () => {
+            const zoom = this._settings.get_int('launcher-hover-zoom') / 100.0;
+            this._overviewButton.ease({
+                scale_x: this._overviewButton.hover ? zoom : 1.0,
+                scale_y: this._overviewButton.hover ? zoom : 1.0,
+                duration: 150,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        });
+        this.actor.insert_child_at_index(this._overviewButton, 0);
+    }
+
     _rebuild() {
         this._iconButtons.forEach(b => b.destroy());
         this._iconButtons = [];
+        this._buildOverviewButton();
 
         const iconSize = this._settings.get_int('icon-size');
         const favorites = this._gnomeSettings.get_strv(FAVORITES_KEY);
@@ -230,6 +277,10 @@ export class AppLauncher {
     }
 
     destroy() {
+        if (this._overviewButton) {
+            this._overviewButton.destroy();
+            this._overviewButton = null;
+        }
         this._iconButtons.forEach(b => b.destroy());
         this._iconButtons = [];
 
@@ -248,6 +299,10 @@ export class AppLauncher {
         if (this._positionChangedId) {
             this._settings.disconnect(this._positionChangedId);
             this._positionChangedId = null;
+        }
+        if (this._overviewButtonSettingId) {
+            this._settings.disconnect(this._overviewButtonSettingId);
+            this._overviewButtonSettingId = null;
         }
         this.actor.destroy();
     }
