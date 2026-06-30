@@ -1,0 +1,9 @@
+{
+  "name": "GDash",
+  "description": "A dual-panel dock: pinned app launcher on the left, live window previews on the right.",
+  "uuid": "gdash@guido.local",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 1,
+  "url": "",
+  "settings-schema": "org.gnome.shell.extensions.gdash"
+}

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gdash"
+          path="/org/gnome/shell/extensions/gdash/">
+
+    <key name="dock-position" type="s">
+      <default>'BOTTOM'</default>
+      <summary>Dock position on screen</summary>
+      <description>BOTTOM, TOP, LEFT, or RIGHT</description>
+    </key>
+
+    <key name="dock-size" type="i">
+      <default>96</default>
+      <range min="48" max="256"/>
+      <summary>Dock thickness in pixels</summary>
+      <description>Height for BOTTOM/TOP, width for LEFT/RIGHT</description>
+    </key>
+
+    <key name="icon-size" type="i">
+      <default>48</default>
+      <range min="24" max="128"/>
+      <summary>App icon size in pixels</summary>
+    </key>
+
+    <key name="dock-alignment" type="s">
+      <default>'CENTER'</default>
+      <summary>Dock alignment along its axis</summary>
+      <description>START, CENTER, or END — horizontal for BOTTOM/TOP, vertical for LEFT/RIGHT</description>
+    </key>
+
+    <key name="launcher-spacing" type="i">
+      <default>4</default>
+      <range min="0" max="48"/>
+      <summary>Spacing between app icons in pixels</summary>
+    </key>
+
+    <key name="preview-spacing" type="i">
+      <default>6</default>
+      <range min="0" max="48"/>
+      <summary>Spacing between window thumbnails in pixels</summary>
+    </key>
+
+    <key name="launcher-hover-zoom" type="i">
+      <default>100</default>
+      <range min="100" max="200"/>
+      <summary>App icon zoom on hover (percentage)</summary>
+      <description>100 = no zoom, 150 = scale to 1.5× on hover</description>
+    </key>
+
+    <key name="preview-hover-zoom" type="i">
+      <default>100</default>
+      <range min="100" max="200"/>
+      <summary>Window thumbnail zoom on hover (percentage)</summary>
+      <description>100 = no zoom, 150 = scale to 1.5× on hover</description>
+    </key>
+
+    <key name="thumbnail-height" type="i">
+      <default>72</default>
+      <range min="32" max="200"/>
+      <summary>Window thumbnail height in pixels</summary>
+      <description>All thumbnails are scaled to this height; width follows the window aspect ratio</description>
+    </key>
+
+    <key name="use-theme-colors" type="b">
+      <default>false</default>
+      <summary>Use the shell theme for dock styling</summary>
+      <description>When true, clears all custom inline styles so the active GNOME Shell theme styles the dock</description>
+    </key>
+
+    <key name="background-color" type="s">
+      <default>'rgba(18,18,18,0.82)'</default>
+      <summary>Dock background color (CSS rgba string)</summary>
+    </key>
+
+    <key name="border-radius" type="i">
+      <default>16</default>
+      <range min="0" max="48"/>
+      <summary>Corner radius in pixels</summary>
+    </key>
+
+    <key name="dock-padding" type="i">
+      <default>6</default>
+      <range min="0" max="32"/>
+      <summary>Internal padding between the dock edge and its contents</summary>
+    </key>
+
+    <key name="edge-margin" type="i">
+      <default>8</default>
+      <range min="0" max="64"/>
+      <summary>Gap between the dock and the screen edge in pixels</summary>
+    </key>
+
+    <key name="outer-border-width" type="i">
+      <default>1</default>
+      <range min="0" max="8"/>
+      <summary>Outer border width in pixels (0 = no border)</summary>
+    </key>
+
+    <key name="outer-border-color" type="s">
+      <default>'rgba(255,255,255,0.08)'</default>
+      <summary>Outer border color (CSS rgba string)</summary>
+    </key>
+
+    <key name="hide-dash" type="b">
+      <default>false</default>
+      <summary>Hide the built-in GNOME Shell dash</summary>
+      <description>Hides the standard dash from the overview so only GDash is visible</description>
+    </key>
+
+    <key name="dock-behavior" type="s">
+      <default>'ALWAYS_VISIBLE'</default>
+      <summary>Dock visibility behavior</summary>
+      <description>ALWAYS_VISIBLE, INTELLIHIDE, WINDOWS_CAN_COVER, or ALWAYS_HIDDEN</description>
+    </key>
+
+    <key name="window-right-click" type="s">
+      <default>'MENU'</default>
+      <summary>Action when right-clicking a window thumbnail</summary>
+      <description>MENU, CLOSE, NEW_INSTANCE, or CYCLE</description>
+    </key>
+
+    <key name="window-middle-click" type="s">
+      <default>'CLOSE'</default>
+      <summary>Action when middle-clicking a window thumbnail</summary>
+      <description>MENU, CLOSE, NEW_INSTANCE, or CYCLE</description>
+    </key>
+
+    <key name="hide-delay" type="i">
+      <default>400</default>
+      <range min="0" max="5000"/>
+      <summary>Delay before the dock auto-hides (milliseconds)</summary>
+    </key>
+
+    <key name="show-all-workspaces" type="b">
+      <default>true</default>
+      <summary>Show windows from all workspaces</summary>
+      <description>When false, only the current workspace is shown</description>
+    </key>
+
+    <key name="show-minimized" type="b">
+      <default>true</default>
+      <summary>Include minimized windows</summary>
+    </key>
+
+  </schema>
+</schemalist>

@@ -1,0 +1,91 @@
+/* ── Dock container ──────────────────────────────────────────────────────── */
+/* All background/border/padding properties are set by dock.js as inline     */
+/* style so they update live from prefs. When "use-theme-colors" is ON,      */
+/* the inline style is cleared and the .gdash-theme class is added instead,  */
+/* giving a neutral dark appearance that blends with most shell themes.       */
+
+.gdash-theme {
+    background-color: rgba(0, 0, 0, 0.72);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.45);
+    padding: 4px 8px;
+}
+
+.gdash-dock-row {
+    spacing: 0px;
+}
+
+/* ── Separator ───────────────────────────────────────────────────────────── */
+
+.gdash-separator {
+    background-color: rgba(255, 255, 255, 0.15);
+    width: 1px;
+    min-width: 1px;
+    margin: 6px 10px;
+}
+
+/* ── App launcher (left panel) ───────────────────────────────────────────── */
+
+.gdash-app-launcher {
+    padding: 2px 4px;
+}
+
+.gdash-app-icon {
+    border-radius: 10px;
+    padding: 5px;
+    transition-duration: 120ms;
+    background-color: transparent;
+    border: 2px solid transparent;
+}
+
+.gdash-app-icon:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.gdash-app-icon:active {
+    background-color: rgba(255, 255, 255, 0.22);
+    transition-duration: 60ms;
+}
+
+.gdash-app-icon-image {
+    icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Window previews (right panel) ──────────────────────────────────────── */
+
+.gdash-previews-row {
+    padding: 2px 4px;
+}
+
+.gdash-window-preview {
+    border-radius: 8px;
+    border: 2px solid transparent;
+    padding: 3px;
+    transition-duration: 120ms;
+    background-color: transparent;
+}
+
+.gdash-window-preview:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+
+.gdash-window-preview.focused {
+    border-color: rgba(120, 180, 255, 0.70);
+    background-color: rgba(120, 180, 255, 0.08);
+}
+
+.gdash-thumbnail-box {
+    border-radius: 5px;
+}
+
+.gdash-window-title {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.90);
+    text-align: center;
+    padding: 2px 6px;
+    background-color: rgba(0, 0, 0, 0.60);
+    border-radius: 4px;
+    margin-bottom: 3px;
+}
