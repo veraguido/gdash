@@ -9,6 +9,13 @@
       <description>BOTTOM, TOP, LEFT, or RIGHT</description>
     </key>
 
+    <key name="monitor-index" type="i">
+      <default>-1</default>
+      <range min="-1" max="7"/>
+      <summary>Monitor to display the dock on</summary>
+      <description>-1 = primary monitor; 0, 1, 2 … = specific monitor by index</description>
+    </key>
+
     <key name="dock-size" type="i">
       <default>96</default>
       <range min="48" max="256"/>

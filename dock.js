@@ -48,7 +48,7 @@ export class Dock {
 
         // Position changes also affect hide translation and hot-strip placement
         this._positionSettingIds = [
-            'dock-position', 'dock-size', 'dock-alignment', 'edge-margin',
+            'dock-position', 'dock-size', 'dock-alignment', 'edge-margin', 'monitor-index',
         ].map(key => settings.connect(`changed::${key}`, () => {
             this.reposition();
             this._initBehavior();
@@ -78,8 +78,16 @@ export class Dock {
         this._overviewHiddenId  = Main.overview.connect('hidden',  () => this._restoreBehaviorVisibility());
     }
 
+    _getMonitor() {
+        const idx = this._settings.get_int('monitor-index');
+        const monitors = Main.layoutManager.monitors;
+        if (idx >= 0 && idx < monitors.length)
+            return monitors[idx];
+        return Main.layoutManager.primaryMonitor;
+    }
+
     reposition(animate = false) {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = this._getMonitor();
         if (!monitor) return;
 
         const position  = this._settings.get_string('dock-position');
@@ -473,7 +481,7 @@ export class Dock {
 
     _positionHotStrip() {
         if (!this._hotStrip) return;
-        const mon = Main.layoutManager.primaryMonitor;
+        const mon = this._getMonitor();
         if (!mon) return;
         const pos   = this._settings.get_string('dock-position');
         const STRIP = 2;

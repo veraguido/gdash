@@ -8,6 +8,7 @@ import * as AppFavorites from 'resource:///org/gnome/shell/ui/appFavorites.js';
 
 const GNOME_SHELL_SCHEMA = 'org.gnome.shell';
 const FAVORITES_KEY = 'favorite-apps';
+const DRAG_THRESHOLD = 8;
 
 // ── App icon button ──────────────────────────────────────────────────────────
 
@@ -16,6 +17,10 @@ class AppIconButton {
         this._app = app;
         this._settings = settings;
         this._menu = null;
+        this._launcher = null;
+        this._dragPending = false;
+        this._dragging = false;
+        this._stageCaptureId = null;
 
         const icon = new St.Icon({
             gicon: app.get_icon(),
@@ -36,7 +41,9 @@ class AppIconButton {
         this.actor.set_pivot_point(0.5, 0.5);
         this.actor.set_name(app.get_name());
 
-        this._clickId = this.actor.connect('clicked', () => app.activate());
+        this._clickId = this.actor.connect('clicked', () => {
+            if (!this._dragging) app.activate();
+        });
 
         this._menuManager = new PopupMenu.PopupMenuManager(this.actor);
 
@@ -49,6 +56,58 @@ class AppIconButton {
                 return Clutter.EVENT_PROPAGATE;
             }
         );
+
+        this._dragPressId = this.actor.connect(
+            'button-press-event', (_a, event) => {
+                if (event.get_button() !== Clutter.BUTTON_PRIMARY) return Clutter.EVENT_PROPAGATE;
+                [this._dragStartX, this._dragStartY] = event.get_coords();
+                this._dragPending = true;
+                this._stageCaptureId = global.stage.connect(
+                    'captured-event', (_stage, ev) => this._onStageCapture(ev)
+                );
+                return Clutter.EVENT_PROPAGATE;
+            }
+        );
+    }
+
+    connectLauncher(launcher) {
+        this._launcher = launcher;
+    }
+
+    _onStageCapture(event) {
+        const type = event.type();
+
+        if (type === Clutter.EventType.MOTION) {
+            const [x, y] = event.get_coords();
+            if (this._dragPending) {
+                if (Math.hypot(x - this._dragStartX, y - this._dragStartY) > DRAG_THRESHOLD) {
+                    this._dragPending = false;
+                    this._dragging = true;
+                    this._launcher?._startDrag(this, x, y);
+                }
+            } else if (this._dragging) {
+                this._launcher?._updateDrag(x, y);
+                return Clutter.EVENT_STOP;
+            }
+        } else if (type === Clutter.EventType.BUTTON_RELEASE) {
+            const wasDragging = this._dragging;
+            this._dragPending = false;
+            this._dragging = false;
+            this._disconnectStageCapture();
+            if (wasDragging) {
+                this._launcher?._endDrag();
+                return Clutter.EVENT_STOP;
+            }
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _disconnectStageCapture() {
+        if (this._stageCaptureId) {
+            global.stage.disconnect(this._stageCaptureId);
+            this._stageCaptureId = null;
+        }
     }
 
     setIconSize(size) {
@@ -67,7 +126,6 @@ class AppIconButton {
     }
 
     _showMenu() {
-        // Destroy any existing menu first (handles dock-position changes)
         if (this._menu) {
             this._menuManager.removeMenu(this._menu);
             this._menu.destroy();
@@ -94,14 +152,12 @@ class AppIconButton {
         const app = this._app;
         const isRunning = app.get_state() === Shell.AppState.RUNNING;
 
-        // ── Launch section ────────────────────────────────────────────────────
         if (isRunning && app.can_open_new_window()) {
             this._menu.addAction('New Window', () => app.open_new_window(-1));
         } else if (!isRunning) {
             this._menu.addAction('Open', () => app.activate());
         }
 
-        // ── Open windows ──────────────────────────────────────────────────────
         if (isRunning) {
             const wins = app.get_windows();
             if (wins.length > 0) {
@@ -117,7 +173,6 @@ class AppIconButton {
             }
         }
 
-        // ── Dash management ───────────────────────────────────────────────────
         this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         const favs = AppFavorites.getAppFavorites();
@@ -134,7 +189,6 @@ class AppIconButton {
                 `appstream://${app.get_id()}`, null, null, null);
         });
 
-        // ── Quit ──────────────────────────────────────────────────────────────
         if (isRunning) {
             this._menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             this._menu.addAction('Quit', () => {
@@ -144,6 +198,11 @@ class AppIconButton {
     }
 
     destroy() {
+        this._disconnectStageCapture();
+        if (this._dragPressId) {
+            this.actor.disconnect(this._dragPressId);
+            this._dragPressId = null;
+        }
         if (this._menu) {
             this._menuManager.removeMenu(this._menu);
             this._menu.destroy();
@@ -167,6 +226,8 @@ export class AppLauncher {
     constructor(settings) {
         this._settings = settings;
         this._iconButtons = [];
+        this._dragButton = null;
+        this._dragClone = null;
 
         this.actor = new St.BoxLayout({
             style_class: 'gdash-app-launcher',
@@ -262,7 +323,9 @@ export class AppLauncher {
             if (!app) continue;
 
             const btn = new AppIconButton(app, iconSize, this._settings);
+            btn.connectLauncher(this);
             btn.actor.connect('notify::hover', () => {
+                if (this._dragButton) return;
                 const zoom = this._settings.get_int('launcher-hover-zoom') / 100.0;
                 btn.actor.ease({
                     scale_x: btn.actor.hover ? zoom : 1.0,
@@ -276,7 +339,116 @@ export class AppLauncher {
         }
     }
 
+    // ── Drag reorder ─────────────────────────────────────────────────────────
+
+    _startDrag(btn, stageX, stageY) {
+        this._dragButton = btn;
+
+        const [ax, ay] = btn.actor.get_transformed_position();
+        this._dragOffsetX = stageX - ax;
+        this._dragOffsetY = stageY - ay;
+
+        const iconSize = this._settings.get_int('icon-size');
+        this._dragClone = new St.Icon({
+            gicon: btn._app.get_icon(),
+            icon_size: iconSize,
+            style_class: 'gdash-app-icon-image',
+            opacity: 220,
+        });
+        Main.uiGroup.add_child(this._dragClone);
+        // Center the bare icon over the button's position
+        this._dragClone.set_position(
+            ax + Math.round((btn.actor.width  - iconSize) / 2),
+            ay + Math.round((btn.actor.height - iconSize) / 2)
+        );
+
+        // Dim and shrink original — it stays in the layout as the drop placeholder
+        btn.actor.opacity = 80;
+        btn.actor.set_scale(0.85, 0.85);
+    }
+
+    _updateDrag(stageX, stageY) {
+        if (!this._dragButton || !this._dragClone) return;
+
+        const iconSize = this._settings.get_int('icon-size');
+        this._dragClone.set_position(
+            stageX - this._dragOffsetX + Math.round((this._dragButton.actor.width  - iconSize) / 2),
+            stageY - this._dragOffsetY + Math.round((this._dragButton.actor.height - iconSize) / 2)
+        );
+
+        const newIdx = this._computeDropIndex(stageX, stageY);
+        if (newIdx === null) return;
+
+        const curIdx = this._iconButtons.indexOf(this._dragButton);
+        if (newIdx === curIdx) return;
+
+        // Reorder the ghost in the live layout
+        this._iconButtons.splice(curIdx, 1);
+        this._iconButtons.splice(newIdx, 0, this._dragButton);
+
+        const offset = this._overviewButton ? 1 : 0;
+        for (let i = 0; i < this._iconButtons.length; i++)
+            this.actor.set_child_at_index(this._iconButtons[i].actor, i + offset);
+    }
+
+    _computeDropIndex(stageX, stageY) {
+        const pos = this._settings.get_string('dock-position');
+        const vertical = pos === 'LEFT' || pos === 'RIGHT';
+
+        let bestIdx = null;
+        let bestDist = Infinity;
+
+        for (let i = 0; i < this._iconButtons.length; i++) {
+            const btn = this._iconButtons[i];
+            if (btn === this._dragButton) continue;
+
+            const [bx, by] = btn.actor.get_transformed_position();
+            const cx = bx + btn.actor.width  / 2;
+            const cy = by + btn.actor.height / 2;
+            const dist = vertical ? Math.abs(stageY - cy) : Math.abs(stageX - cx);
+
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = (vertical ? stageY < cy : stageX < cx) ? i : i + 1;
+            }
+        }
+
+        return bestIdx;
+    }
+
+    _endDrag() {
+        if (!this._dragButton) return;
+
+        this._dragButton.actor.opacity = 255;
+        this._dragButton.actor.set_scale(1.0, 1.0);
+        this._dragButton = null;
+
+        if (this._dragClone) {
+            Main.uiGroup.remove_child(this._dragClone);
+            this._dragClone.destroy();
+            this._dragClone = null;
+        }
+
+        // Persist new order; _favChangedId fires synchronously → _rebuild() resets button state
+        const newFavorites = this._iconButtons.map(b => b._app.get_id());
+        this._gnomeSettings.set_strv(FAVORITES_KEY, newFavorites);
+    }
+
+    // ── Teardown ─────────────────────────────────────────────────────────────
+
     destroy() {
+        // Clean up any in-progress drag
+        if (this._dragButton) {
+            this._dragButton.actor.opacity = 255;
+            this._dragButton.actor.set_scale(1.0, 1.0);
+            this._dragButton = null;
+        }
+        if (this._dragClone) {
+            Main.uiGroup.remove_child(this._dragClone);
+            this._dragClone.destroy();
+            this._dragClone = null;
+        }
+
         if (this._overviewButton) {
             this._overviewButton.destroy();
             this._overviewButton = null;

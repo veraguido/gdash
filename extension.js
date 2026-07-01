@@ -32,7 +32,7 @@ export default class GDashExtension extends Extension {
         );
         // Strut actor geometry must track any setting that changes the dock's
         // resting position or thickness.
-        this._strutSettingIds = ['dock-position', 'dock-size', 'edge-margin'].map(key =>
+        this._strutSettingIds = ['dock-position', 'dock-size', 'edge-margin', 'monitor-index'].map(key =>
             this._settings.connect(`changed::${key}`, () => this._updateStrutActor())
         );
 
@@ -131,9 +131,17 @@ export default class GDashExtension extends Extension {
         this._strutActor = null;
     }
 
+    _getMonitor() {
+        const idx = this._settings.get_int('monitor-index');
+        const monitors = Main.layoutManager.monitors;
+        if (idx >= 0 && idx < monitors.length)
+            return monitors[idx];
+        return Main.layoutManager.primaryMonitor;
+    }
+
     _updateStrutActor() {
         if (!this._strutActor) return;
-        const mon = Main.layoutManager.primaryMonitor;
+        const mon = this._getMonitor();
         if (!mon) return;
 
         const pos    = this._settings.get_string('dock-position');

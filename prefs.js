@@ -19,6 +19,8 @@ export default class GDashPreferences extends ExtensionPreferences {
         const layoutGroup = new Adw.PreferencesGroup({title: 'Dock position & size'});
         layoutPage.add(layoutGroup);
 
+        layoutGroup.add(this._makeMonitorDropDown(settings));
+
         layoutGroup.add(this._makeDropDown(settings, 'dock-position', 'Position', [
             {label: 'Bottom', value: 'BOTTOM'},
             {label: 'Top',    value: 'TOP'},
@@ -156,6 +158,51 @@ export default class GDashPreferences extends ExtensionPreferences {
     }
 
     // ── Widget helpers ───────────────────────────────────────────────────────
+
+    _makeMonitorDropDown(settings) {
+        const row = new Adw.ActionRow({title: 'Monitor'});
+
+        const display = Gdk.Display.get_default();
+        const gdkMonitors = display.get_monitors();
+        const count = gdkMonitors.get_n_items();
+
+        const options = [{label: 'Primary (auto)', value: -1}];
+        for (let i = 0; i < count; i++) {
+            const mon = gdkMonitors.get_item(i);
+            const geo = mon.get_geometry();
+            const name =
+                mon.get_description?.() ||
+                [mon.get_manufacturer(), mon.get_model()].filter(Boolean).join(' ') ||
+                mon.get_connector() ||
+                `Monitor ${i}`;
+            options.push({label: `${name} (${geo.width}×${geo.height})`, value: i});
+        }
+
+        const model = new Gtk.StringList({strings: options.map(o => o.label)});
+        const currentVal = settings.get_int('monitor-index');
+        const currentIdx = Math.max(0, options.findIndex(o => o.value === currentVal));
+
+        const combo = new Gtk.DropDown({
+            model,
+            selected: currentIdx,
+            valign: Gtk.Align.CENTER,
+        });
+
+        combo.connect('notify::selected', () => {
+            settings.set_int('monitor-index', options[combo.selected].value);
+        });
+
+        settings.connect('changed::monitor-index', () => {
+            const val = settings.get_int('monitor-index');
+            const idx = options.findIndex(o => o.value === val);
+            if (idx >= 0 && combo.selected !== idx)
+                combo.selected = idx;
+        });
+
+        row.add_suffix(combo);
+        row.activatable_widget = combo;
+        return row;
+    }
 
     _makeDropDown(settings, key, title, options) {
         const row = new Adw.ActionRow({title});
