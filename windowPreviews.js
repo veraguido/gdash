@@ -29,16 +29,18 @@ class WindowPreview {
         });
         this.actor.add_child(this._thumbnailBox);
 
-        // Title overlay — bottom-aligned, hidden until hover
-        this._label = new St.Label({
-            style_class: 'gdash-window-title',
-            text: this._getTitle(),
+        // App icon overlay — centered, hidden until hover
+        const app = Shell.WindowTracker.get_default().get_window_app(metaWindow);
+        this._appIcon = new St.Icon({
+            gicon: app?.get_icon() ?? null,
+            icon_size: 32,
+            style_class: 'gdash-window-app-icon',
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.CENTER,
             visible: false,
             opacity: 0,
         });
-        this.actor.add_child(this._label);
+        this.actor.add_child(this._appIcon);
 
         this._clone = null;
         this._actorWatchId = null;
@@ -63,8 +65,8 @@ class WindowPreview {
                     duration: 150,
                     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 });
-                this._label.visible = true;
-                this._label.ease({
+                this._appIcon.visible = true;
+                this._appIcon.ease({
                     opacity: 255,
                     duration: 120,
                     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
@@ -76,18 +78,14 @@ class WindowPreview {
                     duration: 150,
                     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 });
-                this._label.ease({
+                this._appIcon.ease({
                     opacity: 0,
                     duration: 120,
                     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                    onComplete: () => { this._label.visible = false; },
+                    onComplete: () => { this._appIcon.visible = false; },
                 });
             }
         });
-
-        this._titleChangedId = metaWindow.connect(
-            'notify::title', () => { this._label.text = this._getTitle(); }
-        );
 
         this._minimizeChangedId = metaWindow.connect(
             'notify::minimized', () => this._updateMinimized()
@@ -109,11 +107,6 @@ class WindowPreview {
             'notify::focus-window', () => this._updateFocus()
         );
         this._updateFocus();
-    }
-
-    _getTitle() {
-        const title = this._metaWindow.get_title();
-        return title && title.length > 30 ? `${title.slice(0, 27)}…` : (title ?? '');
     }
 
     _buildClone() {
@@ -299,10 +292,6 @@ class WindowPreview {
         if (this._buttonPressId) {
             this.actor.disconnect(this._buttonPressId);
             this._buttonPressId = null;
-        }
-        if (this._titleChangedId) {
-            this._metaWindow.disconnect(this._titleChangedId);
-            this._titleChangedId = null;
         }
         if (this._minimizeChangedId) {
             this._metaWindow.disconnect(this._minimizeChangedId);
