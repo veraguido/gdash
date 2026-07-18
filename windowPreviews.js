@@ -198,7 +198,14 @@ class WindowPreview {
 
     _updateMinimized() {
         const minimized = this._metaWindow.minimized;
-        if (!this._settings.get_boolean('show-minimized') && minimized) {
+        if (this._settings.get_boolean('show-minimized-only')) {
+            if (minimized) {
+                this.actor.show();
+                this.actor.opacity = 255;
+            } else {
+                this.actor.hide();
+            }
+        } else if (!this._settings.get_boolean('show-minimized') && minimized) {
             this.actor.hide();
         } else {
             this.actor.show();
@@ -358,7 +365,7 @@ export class WindowPreviews {
         );
 
         // Settings changes that affect which windows to show
-        ['show-all-workspaces', 'show-minimized'].forEach(key => {
+        ['show-all-workspaces', 'show-minimized', 'show-minimized-only'].forEach(key => {
             settings.connect(`changed::${key}`, () => this._rebuild());
         });
 
@@ -420,6 +427,7 @@ export class WindowPreviews {
 
         const preview = new WindowPreview(win, this._settings);
         preview._onCloneReady = () => this.onSizeChanged?.();
+        preview.actor.connect('notify::visible', () => this.onSizeChanged?.());
         this._previews.set(win, preview);
         this._row.add_child(preview.actor);
         this.onSizeChanged?.();

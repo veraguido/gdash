@@ -152,15 +152,15 @@ export class Dock {
                 height: h,
                 duration: 160,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                onStopped: () => this._appLauncher.updateWindowGeometries(),
             });
         } else {
             this.actor.set_position(x, y);
             this.actor.set_size(w, h);
             this.actor.queue_redraw();
             this._positioned = true;
-            // Let active behavior re-check overlap/maximize now that the dock
-            // has a real position and size on screen.
             this._onAfterReposition?.();
+            this._appLauncher.updateWindowGeometries();
         }
     }
 

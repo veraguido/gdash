@@ -1,4 +1,5 @@
 import Gio from 'gi://Gio';
+import Mtk from 'gi://Mtk';
 import St from 'gi://St';
 import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
@@ -22,7 +23,7 @@ class AppIconButton {
         this._dragging = false;
         this._stageCaptureId = null;
 
-        const icon = new St.Icon({
+        this._icon = new St.Icon({
             gicon: app.get_icon(),
             icon_size: iconSize,
             style_class: 'gdash-app-icon-image',
@@ -30,7 +31,7 @@ class AppIconButton {
 
         this.actor = new St.Button({
             style_class: 'gdash-app-icon',
-            child: icon,
+            child: this._icon,
             can_focus: true,
             reactive: true,
             track_hover: true,
@@ -40,6 +41,15 @@ class AppIconButton {
         });
         this.actor.set_pivot_point(0.5, 0.5);
         this.actor.set_name(app.get_name());
+
+        // Keep geometry fresh: allocation fires on initial placement / icon-size rebuild;
+        // windows-changed covers new windows opened while the dock is static.
+        this._allocationId = this.actor.connect(
+            'notify::allocation', () => this.updateWindowGeometry()
+        );
+        this._windowsChangedId = app.connect(
+            'windows-changed', () => this.updateWindowGeometry()
+        );
 
         this._clickId = this.actor.connect('clicked', () => {
             if (!this._dragging) app.activate();
@@ -110,9 +120,21 @@ class AppIconButton {
         }
     }
 
+    updateWindowGeometry() {
+        if (!this.actor.get_stage()) return;
+        const [x, y] = this.actor.get_transformed_position();
+        const {width: w, height: h} = this.actor;
+        if (w === 0 || h === 0) return;
+        const rect = new Mtk.Rectangle({
+            x: Math.round(x), y: Math.round(y),
+            width: Math.round(w), height: Math.round(h),
+        });
+        for (const win of this._app.get_windows())
+            win.set_icon_geometry(rect);
+    }
+
     setIconSize(size) {
-        const icon = this.actor.get_child();
-        if (icon) icon.icon_size = size;
+        this._icon.icon_size = size;
     }
 
     // ── Context menu ─────────────────────────────────────────────────────────
@@ -199,6 +221,14 @@ class AppIconButton {
 
     destroy() {
         this._disconnectStageCapture();
+        if (this._allocationId) {
+            this.actor.disconnect(this._allocationId);
+            this._allocationId = null;
+        }
+        if (this._windowsChangedId) {
+            this._app.disconnect(this._windowsChangedId);
+            this._windowsChangedId = null;
+        }
         if (this._dragPressId) {
             this.actor.disconnect(this._dragPressId);
             this._dragPressId = null;
@@ -259,7 +289,6 @@ export class AppLauncher {
         this._overviewButtonSettingId = settings.connect(
             'changed::show-overview-button', () => this._buildOverviewButton()
         );
-
         this._updateOrientation();
     }
 
@@ -308,6 +337,11 @@ export class AppLauncher {
             });
         });
         this.actor.insert_child_at_index(this._overviewButton, 0);
+    }
+
+    updateWindowGeometries() {
+        for (const btn of this._iconButtons)
+            btn.updateWindowGeometry();
     }
 
     _rebuild() {

@@ -77,6 +77,9 @@ export default class GDashPreferences extends ExtensionPreferences {
         thumbGroup.add(this._makeSwitchRow(settings, 'show-minimized',
             'Show minimized', 'Include minimized windows (shown dimmed)'));
 
+        thumbGroup.add(this._makeSwitchRow(settings, 'show-minimized-only',
+            'Minimized only', 'Show only minimized windows — use the preview strip as a minimized-window tray'));
+
         const clickGroup = new Adw.PreferencesGroup({title: 'Click actions'});
         thumbPage.add(clickGroup);
 
