@@ -151,7 +151,10 @@ export class Dock {
                 height: h,
                 duration: 160,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onStopped: () => this._appLauncher.updateWindowGeometries(),
+                onStopped: () => {
+                    this._appLauncher.updateWindowGeometries();
+                    this._onAfterReposition?.();
+                },
             });
         } else {
             this.actor.set_position(x, y);
@@ -366,13 +369,21 @@ export class Dock {
                    r.y <= extY2 && r.y + r.height >= extY1;
         });
 
-        // Compute the translation that moves the dock flush to the screen edge.
-        const tx = pos === 'LEFT' ? -margin : pos === 'RIGHT' ? margin  : 0;
-        const ty = pos === 'TOP'  ? -margin : pos === 'BOTTOM' ? margin : 0;
+        // When overlapping: expand the dock to fill the full span from the window
+        // edge to the screen edge, so there's no gap on either side.
+        // BOTTOM/RIGHT: actor origin is already at the window side — only expand size.
+        // TOP/LEFT: actor origin is at the screen edge — translate toward edge + expand size.
+        const size = this._settings.get_int('dock-size');
+        const tx = overlaps && pos === 'LEFT'  ? -margin : 0;
+        const ty = overlaps && pos === 'TOP'   ? -margin : 0;
+        const isVertical = pos === 'TOP' || pos === 'BOTTOM';
 
         this.actor.ease({
-            translation_x: overlaps ? tx : 0,
-            translation_y: overlaps ? ty : 0,
+            translation_x: tx,
+            translation_y: ty,
+            ...(isVertical
+                ? {height: overlaps ? size + margin : size}
+                : {width:  overlaps ? size + margin : size}),
             duration: 200,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
         });
