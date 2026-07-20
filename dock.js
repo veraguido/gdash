@@ -12,7 +12,6 @@ export class Dock {
     constructor(settings) {
         this._settings = settings;
         this._hideTimeoutId = null;
-        this._collisionCheckId = null;
         this._dockVisible = true;
         this._positioned = false;
         this._behaviorSigIds = [];
@@ -222,10 +221,6 @@ export class Dock {
 
     _cleanupBehavior() {
         this._cancelDockHide();
-        if (this._collisionCheckId) {
-            GLib.source_remove(this._collisionCheckId);
-            this._collisionCheckId = null;
-        }
         this._onAfterReposition = null;
         for (const [obj, id] of this._behaviorSigIds)
             obj.disconnect(id);
@@ -336,22 +331,10 @@ export class Dock {
         on(global.window_manager,    'destroy',                  check);
         on(global.window_manager,    'minimize',                 check);
         on(global.window_manager,    'unminimize',               check);
-        on(global.window_manager,    'size-change',              () => this._scheduleCollisionCheck());
+        on(global.window_manager,    'size-changed',             check);
         on(global.display,           'grab-op-end',              check);
 
         this._onAfterReposition = check;
-    }
-
-    // Defer the overlap check one idle tick so get_frame_rect() reflects
-    // the final geometry after a keyboard maximize/unmaximize.  Deduplicated:
-    // rapid size-change signals coalesce into a single check.
-    _scheduleCollisionCheck() {
-        if (this._collisionCheckId) return;
-        this._collisionCheckId = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            this._collisionCheckId = null;
-            this._checkAlwaysVisibleCollision();
-            return GLib.SOURCE_REMOVE;
-        });
     }
 
     _checkAlwaysVisibleCollision() {
@@ -408,7 +391,7 @@ export class Dock {
         on(global.window_manager,    'destroy',                  check);
         on(global.window_manager,    'minimize',                 check);
         on(global.window_manager,    'unminimize',               check);
-        on(global.window_manager,    'size-change',              check);
+        on(global.window_manager,    'size-changed',             check);
         on(global.display,           'grab-op-end',              check);
         on(this.actor,               'notify::hover', () => {
             (this.actor.hover || this._hotStrip?.hover) ? this._showDock() : check();
