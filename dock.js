@@ -4,7 +4,7 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-import {AppLauncher} from './appLauncher.js';
+import {AppLauncher, RunningAppsLauncher} from './appLauncher.js';
 import {WindowPreviews} from './windowPreviews.js';
 
 
@@ -39,10 +39,20 @@ export class Dock {
             style_class: 'gdash-separator',
             y_expand: true,
         });
+        this._runningApps = new RunningAppsLauncher(settings);
+        this._separator2 = new St.Widget({
+            style_class: 'gdash-separator',
+            y_expand: true,
+            visible: false,
+        });
         this._windowPreviews = new WindowPreviews(settings);
 
+        // Layout: [pinned] | sep | [running*] | sep2* | [previews]
+        // sep2 and the running section hide themselves when there are no unpinned running apps.
         this._row.add_child(this._appLauncher.actor);
         this._row.add_child(this._separator);
+        this._row.add_child(this._runningApps.actor);
+        this._row.add_child(this._separator2);
         this._row.add_child(this._windowPreviews.actor);
 
         // Position changes also affect hide translation and hot-strip placement
@@ -55,6 +65,12 @@ export class Dock {
 
         // Reposition (animated) when windows are added / removed
         this._windowPreviews.onSizeChanged = () => this.reposition(true);
+
+        // Show/hide the second separator alongside the running-apps section
+        this._runningApps.onSizeChanged = () => {
+            this._separator2.visible = this._runningApps.actor.visible;
+            this.reposition(true);
+        };
 
         // Background / appearance
         this._bgSettingIds = [
@@ -75,6 +91,19 @@ export class Dock {
         // the overview being open so they can't fight this.
         this._overviewShowingId = Main.overview.connect('showing', () => this._showDock(true));
         this._overviewHiddenId  = Main.overview.connect('hidden',  () => this._restoreBehaviorVisibility());
+
+        // Hide the preview strip whenever the focused window is fullscreen on
+        // the same monitor.  Two signals cover all transitions:
+        //   focus-window  — switching to/from an already-fullscreen window
+        //   size-changed  — the focused window toggling fullscreen while focused
+        this._previewsHidden = false;
+        this._fsDisplayId = global.display.connect(
+            'notify::focus-window', () => this._updateFullscreenState()
+        );
+        this._fsSizeId = global.window_manager.connect(
+            'size-changed', () => this._updateFullscreenState()
+        );
+        this._updateFullscreenState();
     }
 
     _getMonitor() {
@@ -153,6 +182,7 @@ export class Dock {
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onStopped: () => {
                     this._appLauncher.updateWindowGeometries();
+                    this._runningApps.updateWindowGeometries();
                     this._onAfterReposition?.();
                 },
             });
@@ -163,6 +193,7 @@ export class Dock {
             this._positioned = true;
             this._onAfterReposition?.();
             this._appLauncher.updateWindowGeometries();
+            this._runningApps.updateWindowGeometries();
         }
     }
 
@@ -494,6 +525,29 @@ export class Dock {
         }
     }
 
+    // ── Fullscreen thumbnail suppression ────────────────────────────────────
+
+    _updateFullscreenState() {
+        const win = global.display.focus_window;
+        if (!win || !win.fullscreen) {
+            this._setPreviewsHidden(false);
+            return;
+        }
+        const mon    = this._getMonitor();
+        const monIdx = Main.layoutManager.monitors.indexOf(mon);
+        this._setPreviewsHidden(win.get_monitor() === monIdx);
+    }
+
+    _setPreviewsHidden(hidden) {
+        if (this._previewsHidden === hidden) return;
+        this._previewsHidden = hidden;
+        this._windowPreviews.actor.visible = !hidden;
+        // In fullscreen, hide both the previews and the sep that precedes them;
+        // otherwise restore sep2 to match the running-apps section's state.
+        this._separator2.visible = !hidden && this._runningApps.actor.visible;
+        this.reposition(true);
+    }
+
     // ── Teardown ─────────────────────────────────────────────────────────────
 
     destroy() {
@@ -504,6 +558,14 @@ export class Dock {
         if (this._overviewHiddenId) {
             Main.overview.disconnect(this._overviewHiddenId);
             this._overviewHiddenId = null;
+        }
+        if (this._fsDisplayId) {
+            global.display.disconnect(this._fsDisplayId);
+            this._fsDisplayId = null;
+        }
+        if (this._fsSizeId) {
+            global.window_manager.disconnect(this._fsSizeId);
+            this._fsSizeId = null;
         }
         this._cleanupBehavior();
 
@@ -517,6 +579,7 @@ export class Dock {
         this._bgSettingIds = [];
 
         this._appLauncher.destroy();
+        this._runningApps.destroy();
         this._windowPreviews.destroy();
         this.actor.destroy();
     }

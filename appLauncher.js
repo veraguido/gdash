@@ -561,3 +561,116 @@ export class AppLauncher {
         this.actor.destroy();
     }
 }
+
+// ── Running (unpinned) apps panel ────────────────────────────────────────────
+
+export class RunningAppsLauncher {
+    constructor(settings) {
+        this._settings = settings;
+        this._iconButtons = [];
+
+        this.actor = new St.BoxLayout({
+            style_class: 'gdash-app-launcher',
+            x_expand: false,
+            y_expand: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            visible: false,
+        });
+
+        this._gnomeSettings = new Gio.Settings({schema: GNOME_SHELL_SCHEMA});
+        this._appSystem = Shell.AppSystem.get_default();
+
+        this._rebuild();
+        this.actor.style = `spacing: ${settings.get_int('launcher-spacing')}px`;
+
+        this._appStateId = this._appSystem.connect(
+            'app-state-changed', () => this._rebuild()
+        );
+        this._favChangedId = this._gnomeSettings.connect(
+            `changed::${FAVORITES_KEY}`, () => this._rebuild()
+        );
+        this._iconSizeChangedId = settings.connect(
+            'changed::icon-size', () => this._rebuild()
+        );
+        this._spacingChangedId = settings.connect(
+            'changed::launcher-spacing',
+            () => { this.actor.style = `spacing: ${settings.get_int('launcher-spacing')}px`; }
+        );
+        this._positionChangedId = settings.connect(
+            'changed::dock-position', () => this._updateOrientation()
+        );
+        this._indicatorPositionChangedId = settings.connect(
+            'changed::indicator-position', () => this._rebuild()
+        );
+        this._updateOrientation();
+    }
+
+    _updateOrientation() {
+        const pos = this._settings.get_string('dock-position');
+        this.actor.vertical = (pos === 'LEFT' || pos === 'RIGHT');
+    }
+
+    _rebuild() {
+        this._iconButtons.forEach(b => b.destroy());
+        this._iconButtons = [];
+
+        const iconSize  = this._settings.get_int('icon-size');
+        const favorites = new Set(this._gnomeSettings.get_strv(FAVORITES_KEY));
+
+        for (const app of this._appSystem.get_running()) {
+            if (favorites.has(app.get_id())) continue;
+
+            const btn = new AppIconButton(app, iconSize, this._settings);
+            btn.actor.connect('notify::hover', () => {
+                const zoom = this._settings.get_int('launcher-hover-zoom') / 100.0;
+                btn.actor.ease({
+                    scale_x: btn.actor.hover ? zoom : 1.0,
+                    scale_y: btn.actor.hover ? zoom : 1.0,
+                    duration: 150,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                });
+            });
+            this._iconButtons.push(btn);
+            this.actor.add_child(btn.actor);
+        }
+
+        this.actor.visible = this._iconButtons.length > 0;
+        this.onSizeChanged?.();
+    }
+
+    updateWindowGeometries() {
+        for (const btn of this._iconButtons)
+            btn.updateWindowGeometry();
+    }
+
+    destroy() {
+        this._iconButtons.forEach(b => b.destroy());
+        this._iconButtons = [];
+
+        if (this._appStateId) {
+            this._appSystem.disconnect(this._appStateId);
+            this._appStateId = null;
+        }
+        if (this._favChangedId) {
+            this._gnomeSettings.disconnect(this._favChangedId);
+            this._favChangedId = null;
+        }
+        if (this._iconSizeChangedId) {
+            this._settings.disconnect(this._iconSizeChangedId);
+            this._iconSizeChangedId = null;
+        }
+        if (this._spacingChangedId) {
+            this._settings.disconnect(this._spacingChangedId);
+            this._spacingChangedId = null;
+        }
+        if (this._positionChangedId) {
+            this._settings.disconnect(this._positionChangedId);
+            this._positionChangedId = null;
+        }
+        if (this._indicatorPositionChangedId) {
+            this._settings.disconnect(this._indicatorPositionChangedId);
+            this._indicatorPositionChangedId = null;
+        }
+        this.actor.destroy();
+    }
+}
