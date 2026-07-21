@@ -161,5 +161,17 @@
       <description>When true, only minimized windows appear in the preview strip; non-minimized windows are hidden</description>
     </key>
 
+    <key name="show-running-indicators" type="b">
+      <default>true</default>
+      <summary>Show running indicators on launcher icons</summary>
+      <description>Display a small dot on launcher icons for apps that have open windows</description>
+    </key>
+
+    <key name="indicator-position" type="s">
+      <default>'BOTTOM'</default>
+      <summary>Position of the running indicator dot</summary>
+      <description>TOP, BOTTOM, LEFT, or RIGHT — which edge of the icon the dot appears on</description>
+    </key>
+
   </schema>
 </schemalist>

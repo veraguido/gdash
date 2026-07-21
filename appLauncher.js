@@ -29,9 +29,30 @@ class AppIconButton {
             style_class: 'gdash-app-icon-image',
         });
 
+        this._indicator = new St.Widget({
+            style_class: 'gdash-running-indicator',
+            opacity: 0,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        // BoxLayout order and direction encode the position; no runtime alignment
+        // mutation needed — indicator-position changes call _rebuild() instead.
+        const indPos = settings.get_string('indicator-position');
+        const iconBox = new St.BoxLayout({
+            vertical: indPos === 'TOP' || indPos === 'BOTTOM',
+        });
+        if (indPos === 'TOP' || indPos === 'LEFT') {
+            iconBox.add_child(this._indicator);
+            iconBox.add_child(this._icon);
+        } else {
+            iconBox.add_child(this._icon);
+            iconBox.add_child(this._indicator);
+        }
+
         this.actor = new St.Button({
             style_class: 'gdash-app-icon',
-            child: this._icon,
+            child: iconBox,
             can_focus: true,
             reactive: true,
             track_hover: true,
@@ -41,6 +62,12 @@ class AppIconButton {
         });
         this.actor.set_pivot_point(0.5, 0.5);
         this.actor.set_name(app.get_name());
+
+        this._appStateId = app.connect('notify::state', () => this._updateIndicator());
+        this._indicatorSettingId = settings.connect(
+            'changed::show-running-indicators', () => this._updateIndicator()
+        );
+        this._updateIndicator();
 
         // Keep geometry fresh: allocation fires on initial placement / icon-size rebuild;
         // windows-changed covers new windows opened while the dock is static.
@@ -118,6 +145,12 @@ class AppIconButton {
             global.stage.disconnect(this._stageCaptureId);
             this._stageCaptureId = null;
         }
+    }
+
+    _updateIndicator() {
+        const show = this._settings.get_boolean('show-running-indicators');
+        const running = this._app.get_state() === Shell.AppState.RUNNING;
+        this._indicator.opacity = (show && running) ? 255 : 0;
     }
 
     updateWindowGeometry() {
@@ -221,6 +254,14 @@ class AppIconButton {
 
     destroy() {
         this._disconnectStageCapture();
+        if (this._appStateId) {
+            this._app.disconnect(this._appStateId);
+            this._appStateId = null;
+        }
+        if (this._indicatorSettingId) {
+            this._settings.disconnect(this._indicatorSettingId);
+            this._indicatorSettingId = null;
+        }
         if (this._allocationId) {
             this.actor.disconnect(this._allocationId);
             this._allocationId = null;
@@ -288,6 +329,9 @@ export class AppLauncher {
         );
         this._overviewButtonSettingId = settings.connect(
             'changed::show-overview-button', () => this._buildOverviewButton()
+        );
+        this._indicatorPositionChangedId = settings.connect(
+            'changed::indicator-position', () => this._rebuild()
         );
         this._updateOrientation();
     }
@@ -509,6 +553,10 @@ export class AppLauncher {
         if (this._overviewButtonSettingId) {
             this._settings.disconnect(this._overviewButtonSettingId);
             this._overviewButtonSettingId = null;
+        }
+        if (this._indicatorPositionChangedId) {
+            this._settings.disconnect(this._indicatorPositionChangedId);
+            this._indicatorPositionChangedId = null;
         }
         this.actor.destroy();
     }

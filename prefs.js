@@ -106,6 +106,17 @@ export default class GDashPreferences extends ExtensionPreferences {
             'Show overview button',
             'Display an Activities button at the start of the dock'));
 
+        dashGroup.add(this._makeSwitchRow(settings, 'show-running-indicators',
+            'Running indicators',
+            'Show a small dot on launcher icons for apps with open windows'));
+
+        dashGroup.add(this._makeDropDown(settings, 'indicator-position', 'Indicator position', [
+            {label: 'Bottom', value: 'BOTTOM'},
+            {label: 'Top',    value: 'TOP'},
+            {label: 'Left',   value: 'LEFT'},
+            {label: 'Right',  value: 'RIGHT'},
+        ]));
+
         dashGroup.add(this._makeSwitchRow(settings, 'hide-dash',
             'Hide built-in dash',
             'Remove the standard GNOME dash from the overview (use GDash instead)'));
